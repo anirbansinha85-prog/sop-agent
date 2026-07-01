@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase, SopRun } from "@/lib/supabaseClient";
 import { runAgent, AgentResult, Step } from "@/lib/agentClient";
+import { useSession, signIn, signUp, signOut } from "@/lib/auth";
 
 function stepsToMarkdown(process: string, steps: Step[]): string {
   const out = [`# SOP — ${process}`, ""];
@@ -134,13 +135,58 @@ function History() {
   );
 }
 
+function Login() {
+  const [mode, setMode] = useState<"in" | "up">("in");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    setBusy(true); setMsg("");
+    const { error } = mode === "in" ? await signIn(email, password) : await signUp(email, password);
+    if (error) setMsg(error.message);
+    else if (mode === "up") setMsg("Account created. If email confirmation is on, check your inbox; otherwise you are in.");
+    setBusy(false);
+  }
+
+  return (
+    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6">
+      <h1 className="text-2xl font-bold text-white">Process SOP Swarm</h1>
+      <p className="mb-6 mt-1 text-slate-400">{mode === "in" ? "Sign in to continue." : "Create an account."}</p>
+      <input value={email} onChange={e => setEmail(e.target.value)} placeholder="email" type="email"
+        className="mb-3 w-full rounded-lg border border-edge bg-panel px-3 py-2.5 text-sm text-white outline-none focus:border-teal" />
+      <input value={password} onChange={e => setPassword(e.target.value)} placeholder="password" type="password"
+        className="mb-4 w-full rounded-lg border border-edge bg-panel px-3 py-2.5 text-sm text-white outline-none focus:border-teal" />
+      <button onClick={submit} disabled={busy} className="w-full rounded-lg bg-teal px-4 py-2.5 font-semibold text-ink hover:opacity-90 disabled:opacity-50">
+        {busy ? "…" : mode === "in" ? "Sign in" : "Sign up"}
+      </button>
+      {msg && <p className="mt-3 text-sm text-amber">{msg}</p>}
+      <button onClick={() => { setMode(mode === "in" ? "up" : "in"); setMsg(""); }} className="mt-4 text-sm text-slate-400 hover:text-white">
+        {mode === "in" ? "Need an account? Sign up" : "Have an account? Sign in"}
+      </button>
+    </main>
+  );
+}
+
 export default function Home() {
+  const { session, loading } = useSession();
   const [tab, setTab] = useState<"generate" | "history">("generate");
+
+  if (loading) return <main className="flex min-h-screen items-center justify-center text-slate-500">Loading…</main>;
+  if (!session) return <Login />;
+
   return (
     <main className="mx-auto max-w-6xl px-6 py-10">
-      <header className="mb-6">
-        <h1 className="text-3xl font-bold tracking-tight text-white">Process SOP Swarm</h1>
-        <p className="mt-1 text-slate-400">Type a few messy lines. A swarm of AI agents returns a regulator-grounded, governed SOP.</p>
+      <header className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-white">Process SOP Swarm</h1>
+          <p className="mt-1 text-slate-400">Type a few messy lines. A swarm of AI agents returns a regulator-grounded, governed SOP.</p>
+        </div>
+        <div className="shrink-0 text-right">
+          <div className="text-xs text-slate-500">{session.user.email}</div>
+          <button onClick={() => signOut()} className="mt-1 text-sm text-slate-400 hover:text-white">Sign out</button>
+        </div>
       </header>
       <div className="mb-6 flex gap-2">
         {(["generate", "history"] as const).map(t => (
